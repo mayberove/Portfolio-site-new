@@ -952,9 +952,8 @@ body:hover #cur-outer{opacity:1}
     flex-direction:row!important;
     overflow-x:auto!important;
     overflow-y:visible!important;
-    scroll-behavior:smooth;
     -webkit-overflow-scrolling:touch;
-    touch-action:pan-x;
+    touch-action:pan-x pan-y;
     gap:12px!important;
     padding-bottom:16px;
     padding-right:20px;
@@ -1156,37 +1155,90 @@ footer::before{
 
 /* ════ PORTFOLIO SCRUBBER + VIEW ALL ════ */
 .work-scrubber-wrap{
-  margin-top:20px;
-  display:flex;flex-direction:column;align-items:center;gap:16px;
+  margin-top:24px;
+  display:flex;flex-direction:column;align-items:center;gap:18px;
 }
+
 .work-scrubber{
   position:relative;
-  width:70%;height:3px;
-  background:rgba(255,255,255,.10);
-  border-radius:999px;
+  width:80%;
+  height:28px; /* tall container = easy finger tap */
   cursor:pointer;
   overflow:visible;
+  display:flex;
+  align-items:center;
+}
+/* visible thin track bar */
+.work-scrubber::before{
+  content:"";
+  position:absolute;
+  left:0;right:0;
+  top:50%;transform:translateY(-50%);
+  height:4px;
+  background:rgba(255,255,255,.12);
+  border-radius:999px;
+  pointer-events:none;
 }
 .work-scrubber-fill{
-  position:absolute;left:0;top:0;height:100%;
-  background:linear-gradient(90deg,var(--blue),rgba(100,180,255,.9));
+  position:absolute;
+  left:0;
+  top:50%;transform:translateY(-50%);
+  height:4px;
+  background:linear-gradient(90deg,rgba(79,142,255,.8),rgba(120,200,255,.9));
   border-radius:999px;
   pointer-events:none;
   width:0%;
-  box-shadow:0 0 6px rgba(79,142,255,.5);
+  box-shadow:0 0 8px rgba(79,142,255,.5);
 }
+
+/* Apple Liquid Glass pill thumb */
 .work-scrubber-thumb{
-  position:absolute;top:50%;
-  width:13px;height:13px;
-  border-radius:50%;
-  background:#fff;
-  border:2px solid var(--blue);
-  box-shadow:0 0 10px rgba(79,142,255,.6),0 2px 6px rgba(0,0,0,.4);
-  transform:translateY(-50%);
+  position:absolute;
+  top:50%;
+  width:40px;
+  height:26px;
+  border-radius:999px;
+  transform:translate(0,-50%);
   cursor:grab;
   pointer-events:none;
-  left:0px;
   will-change:left,width;
+  transition:width .18s cubic-bezier(.23,1,.32,1), height .18s cubic-bezier(.23,1,.32,1), box-shadow .18s;
+
+  background:linear-gradient(175deg,
+    rgba(255,255,255,.75) 0%,
+    rgba(255,255,255,.32) 40%,
+    rgba(200,220,255,.14) 100%
+  );
+  border:1px solid rgba(255,255,255,.65);
+  box-shadow:
+    0 4px 22px rgba(0,0,0,.5),
+    0 1px 5px rgba(0,0,0,.3),
+    inset 0 1.5px 0 rgba(255,255,255,.7),
+    inset 0 -1px 0 rgba(0,0,0,.15),
+    0 0 16px rgba(79,142,255,.2);
+  backdrop-filter:blur(18px) saturate(2);
+  -webkit-backdrop-filter:blur(18px) saturate(2);
+}
+/* specular glare stripe */
+.work-scrubber-thumb::after{
+  content:"";
+  position:absolute;
+  top:2px;left:7px;right:7px;
+  height:38%;
+  border-radius:999px;
+  background:linear-gradient(180deg,rgba(255,255,255,.62) 0%,transparent 100%);
+  pointer-events:none;
+}
+/* expanded state when dragging */
+.work-scrubber-thumb.pressing{
+  width:54px;
+  height:30px;
+  box-shadow:
+    0 6px 28px rgba(0,0,0,.55),
+    0 2px 8px rgba(0,0,0,.3),
+    inset 0 1.5px 0 rgba(255,255,255,.7),
+    inset 0 -1px 0 rgba(0,0,0,.15),
+    0 0 24px rgba(79,142,255,.4);
 }
 
 .view-all-btn{
@@ -2468,7 +2520,7 @@ document.querySelectorAll(".svc").forEach(card => {
   const labelEl = document.getElementById("viewAllLabel");
   if(!grid||!thumb||!scrubber) return;
 
-  const THUMB_R = 6.5; // half of 13px
+  let THUMB_W  = 40; // synced with CSS width
   let currentPct = 0;
   let targetPct  = 0;
   let isDragging = false;
@@ -2480,10 +2532,11 @@ document.querySelectorAll(".svc").forEach(card => {
   }
 
   function applyPct(pct){
-    const tw = scrubber.clientWidth;
-    const px = THUMB_R + pct * (tw - THUMB_R * 2);
+    const tw   = scrubber.clientWidth;
+    const maxL = tw - THUMB_W;
+    const px   = Math.max(0, Math.min(maxL, pct * maxL));
     thumb.style.left = px + "px";
-    fill.style.width  = (pct * 100) + "%";
+    fill.style.width = (pct * 100) + "%";
   }
 
   function setInstant(pct){
@@ -2496,8 +2549,7 @@ document.querySelectorAll(".svc").forEach(card => {
     if(Math.abs(diff) < 0.0003){
       currentPct = targetPct;
       applyPct(currentPct);
-      rafId = null;
-      return;
+      rafId = null; return;
     }
     currentPct += diff * 0.16;
     applyPct(currentPct);
@@ -2520,18 +2572,34 @@ document.querySelectorAll(".svc").forEach(card => {
 
   function dragTo(clientX){
     const rect = scrubber.getBoundingClientRect();
-    const pct  = Math.max(0, Math.min(1, (clientX - rect.left - THUMB_R) / (rect.width - THUMB_R * 2)));
+    const tw   = scrubber.clientWidth;
+    const maxL = tw - THUMB_W;
+    const pct  = Math.max(0, Math.min(1, (clientX - rect.left - THUMB_W / 2) / maxL));
     const max  = grid.scrollWidth - grid.clientWidth;
     if(max > 0) grid.scrollLeft = pct * max;
     setInstant(pct);
   }
 
-  scrubber.addEventListener("mousedown",  e => { isDragging=true; dragTo(e.clientX); e.preventDefault(); });
-  scrubber.addEventListener("touchstart", e => { isDragging=true; dragTo(getClientX(e)); }, { passive:true });
+  function startDrag(clientX){
+    isDragging = true;
+    THUMB_W = 54; // expanded width matches .pressing CSS
+    thumb.classList.add("pressing");
+    dragTo(clientX);
+  }
+
+  function endDrag(){
+    isDragging = false;
+    THUMB_W = 40;
+    thumb.classList.remove("pressing");
+    setTimeout(() => setInstant(pctFromScroll()), 20);
+  }
+
+  scrubber.addEventListener("mousedown",  e => { startDrag(e.clientX); e.preventDefault(); });
+  scrubber.addEventListener("touchstart", e => { startDrag(getClientX(e)); }, { passive:true });
   document.addEventListener("mousemove",  e => { if(isDragging) dragTo(e.clientX); });
   document.addEventListener("touchmove",  e => { if(isDragging) dragTo(getClientX(e)); }, { passive:true });
-  document.addEventListener("mouseup",    () => { isDragging=false; });
-  document.addEventListener("touchend",   () => { isDragging=false; });
+  document.addEventListener("mouseup",    endDrag);
+  document.addEventListener("touchend",   endDrag);
 
   let expanded = false;
   function getActiveLabel(){

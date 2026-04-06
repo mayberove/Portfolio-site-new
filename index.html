@@ -1160,57 +1160,77 @@ footer::before{
 
 /* ════ PORTFOLIO SCRUBBER + VIEW ALL ════ */
 .work-scrubber-wrap{
-  margin-top:24px;
-  display:flex;flex-direction:column;align-items:center;gap:16px;
+  margin-top:28px;
+  display:flex;flex-direction:column;align-items:center;gap:18px;
 }
-/* Liquid Glass pill track */
+
+/* Outer frosted capsule — the "tray" */
 .work-scrubber{
-  position:relative;width:72%;height:6px;
-  background:rgba(255,255,255,.10);
-  border-radius:999px;cursor:pointer;
-  border:1px solid rgba(255,255,255,.13);
-  box-shadow:
-    0 2px 12px rgba(0,0,0,.35),
-    inset 0 1px 0 rgba(255,255,255,.12),
-    inset 0 -1px 0 rgba(0,0,0,.18);
-  backdrop-filter:blur(12px);
-  -webkit-backdrop-filter:blur(12px);
-  overflow:visible;
-}
-/* Filled portion — frosted blue */
-.work-scrubber-fill{
-  position:absolute;left:0;top:0;height:100%;
-  background:linear-gradient(90deg,
-    rgba(79,142,255,.75) 0%,
-    rgba(100,200,255,.85) 100%);
+  position:relative;
+  width:64%;
+  height:22px;
   border-radius:999px;
-  transition:width .12s linear;
-  pointer-events:none;
-  width:0%;
-  box-shadow:0 0 10px rgba(79,142,255,.5),inset 0 1px 0 rgba(255,255,255,.3);
-}
-/* Glass thumb pill */
-.work-scrubber-thumb{
-  position:absolute;top:50%;
-  width:28px;height:18px;border-radius:999px;
-  background:linear-gradient(160deg,rgba(255,255,255,.55) 0%,rgba(255,255,255,.18) 100%);
-  border:1px solid rgba(255,255,255,.55);
-  transform:translate(-50%,-50%);
-  transition:left .12s linear,width .2s,box-shadow .2s;
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.10);
   box-shadow:
-    0 4px 18px rgba(0,0,0,.45),
-    0 1px 0 rgba(255,255,255,.35) inset,
-    0 -1px 0 rgba(0,0,0,.2) inset;
-  backdrop-filter:blur(14px);
-  -webkit-backdrop-filter:blur(14px);
-  cursor:grab;pointer-events:none;
-  left:0%;
+    0 2px 16px rgba(0,0,0,.4),
+    inset 0 1px 0 rgba(255,255,255,.10),
+    inset 0 -1px 0 rgba(0,0,0,.15);
+  backdrop-filter:blur(20px) saturate(1.4);
+  -webkit-backdrop-filter:blur(20px) saturate(1.4);
+  cursor:pointer;
+  overflow:hidden;
+  padding:4px;
+  box-sizing:border-box;
 }
-.work-scrubber:active .work-scrubber-thumb,
-.work-scrubber-thumb:active{
-  cursor:grabbing;
-  width:34px;
-  box-shadow:0 6px 24px rgba(79,142,255,.4),0 1px 0 rgba(255,255,255,.4) inset;
+
+/* Inner filled track */
+.work-scrubber-fill{
+  position:absolute;
+  left:4px;top:4px;bottom:4px;
+  width:0%;
+  background:linear-gradient(90deg,
+    rgba(79,142,255,.0) 0%,
+    rgba(79,142,255,.0) 100%);
+  border-radius:999px;
+  pointer-events:none;
+}
+
+/* The glass thumb pill — this is the star */
+.work-scrubber-thumb{
+  position:absolute;
+  top:3px;bottom:3px;
+  left:3px;
+  width:44px;
+  border-radius:999px;
+  background:linear-gradient(
+    175deg,
+    rgba(255,255,255,.72) 0%,
+    rgba(255,255,255,.28) 40%,
+    rgba(255,255,255,.10) 100%
+  );
+  border:1px solid rgba(255,255,255,.60);
+  box-shadow:
+    0 1px 0 0 rgba(255,255,255,.50) inset,
+    0 -1px 0 0 rgba(0,0,0,.18) inset,
+    0 6px 20px rgba(0,0,0,.40),
+    0 1px 4px rgba(0,0,0,.25);
+  backdrop-filter:blur(16px) saturate(1.8);
+  -webkit-backdrop-filter:blur(16px) saturate(1.8);
+  cursor:grab;
+  pointer-events:none;
+  /* NO CSS transition — JS handles all movement for perfect smoothness */
+  will-change:left,width;
+}
+
+/* Subtle specular glare on thumb */
+.work-scrubber-thumb::after{
+  content:"";
+  position:absolute;
+  top:1px;left:6px;right:6px;height:40%;
+  border-radius:999px;
+  background:linear-gradient(180deg,rgba(255,255,255,.55) 0%,transparent 100%);
+  pointer-events:none;
 }
 
 .view-all-btn{
@@ -1247,6 +1267,7 @@ footer::before{
 #vgrid.expanded .vcard.filter-out{display:none!important}
 @media(max-width:768px){
   #vgrid.expanded{grid-template-columns:repeat(2,1fr)!important}
+  .work-scrubber{width:88%}
 }
 </style>
 </head>
@@ -2481,52 +2502,118 @@ document.querySelectorAll(".svc").forEach(card => {
     }, 50);
   });
 });
-/* ════ PORTFOLIO SCRUBBER ════ */
+/* ════ PORTFOLIO SCRUBBER — smooth Apple-style ════ */
 (function(){
-  const grid = document.getElementById("vgrid");
-  const fill = document.getElementById("workFill");
-  const thumb = document.getElementById("workThumb");
-  const scrubber = document.getElementById("workScrubber");
-  const btn = document.getElementById("viewAllBtn");
+  const grid    = document.getElementById("vgrid");
+  const thumb   = document.getElementById("workThumb");
+  const scrubber= document.getElementById("workScrubber");
+  const btn     = document.getElementById("viewAllBtn");
   const labelEl = document.getElementById("viewAllLabel");
+  if(!grid||!thumb||!scrubber) return;
 
-  function updateScrubber(){
-    if(!grid) return;
+  // Current and target thumb left px — RAF interpolates between them
+  let currentLeft = 0;
+  let targetLeft  = 0;
+  let thumbW      = 44;   // base width px
+  let isDragging  = false;
+  let rafId       = null;
+
+  function trackWidth(){ return scrubber.clientWidth - 6; } // usable px (3px padding each side)
+
+  function pctFromScroll(){
     const max = grid.scrollWidth - grid.clientWidth;
-    if(max <= 0){ fill.style.width="0%"; thumb.style.left="0%"; return; }
-    const pct = (grid.scrollLeft / max) * 100;
-    fill.style.width = pct + "%";
-    thumb.style.left = pct + "%";
+    if(max <= 0) return 0;
+    return grid.scrollLeft / max;
   }
 
-  // Init on load
-  setTimeout(updateScrubber, 300);
-  grid && grid.addEventListener("scroll", updateScrubber, { passive:true });
-  window.addEventListener("resize", updateScrubber, { passive:true });
+  function setThumbInstant(pct){
+    const tw = trackWidth();
+    const maxLeft = tw - thumbW;
+    const px = Math.max(0, Math.min(maxLeft, pct * maxLeft));
+    currentLeft = targetLeft = px;
+    thumb.style.left = (px + 3) + "px"; // +3 for padding
+  }
 
-  // Drag scrubber
-  if(scrubber){
-    let dragging = false;
-    function scrubTo(e){
-      const rect = scrubber.getBoundingClientRect();
-      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-      const max = grid.scrollWidth - grid.clientWidth;
-      if(max > 0) grid.scrollLeft = pct * max;
+  function tick(){
+    // Spring interpolation — feels like iOS
+    const diff = targetLeft - currentLeft;
+    if(Math.abs(diff) < 0.05){
+      currentLeft = targetLeft;
+    } else {
+      currentLeft += diff * 0.18; // spring factor — lower = slower/bouncier
     }
-    scrubber.addEventListener("mousedown", e => { dragging=true; scrubTo(e); e.preventDefault(); });
-    scrubber.addEventListener("touchstart", e => { dragging=true; scrubTo(e); }, {passive:true});
-    document.addEventListener("mousemove", e => { if(dragging) scrubTo(e); });
-    document.addEventListener("touchmove", e => { if(dragging) scrubTo(e); }, {passive:true});
-    document.addEventListener("mouseup", () => dragging=false);
-    document.addEventListener("touchend", () => dragging=false);
+    thumb.style.left = (currentLeft + 3) + "px";
+    if(Math.abs(diff) > 0.05) rafId = requestAnimationFrame(tick);
+    else rafId = null;
   }
 
-  // View All button
+  function scheduleUpdate(pct){
+    const tw = trackWidth();
+    const maxLeft = tw - thumbW;
+    targetLeft = Math.max(0, Math.min(maxLeft, pct * maxLeft));
+    if(!rafId) rafId = requestAnimationFrame(tick);
+  }
+
+  // Sync from grid scroll
+  grid.addEventListener("scroll", () => {
+    if(!isDragging) scheduleUpdate(pctFromScroll());
+  }, { passive:true });
+
+  window.addEventListener("resize", () => {
+    setThumbInstant(pctFromScroll());
+  }, { passive:true });
+
+  // Init
+  setTimeout(() => setThumbInstant(pctFromScroll()), 200);
+
+  // ── Drag logic ──
+  let dragStartX = 0;
+  let dragStartScrollLeft = 0;
+
+  function onDragStart(clientX){
+    isDragging = true;
+    dragStartX = clientX;
+    dragStartScrollLeft = grid.scrollLeft;
+    thumb.style.width = "54px"; // stretch on grab
+    scrubber.style.cursor = "grabbing";
+  }
+
+  function onDragMove(clientX){
+    if(!isDragging) return;
+    const rect    = scrubber.getBoundingClientRect();
+    const tw      = trackWidth();
+    const maxLeft = tw - thumbW;
+    // Map cursor to 0–1 pct of track
+    const rawPct  = (clientX - rect.left - 3 - thumbW/2) / maxLeft;
+    const pct     = Math.max(0, Math.min(1, rawPct));
+    const max     = grid.scrollWidth - grid.clientWidth;
+    // Direct-set scroll (no smooth scroll — we do the smoothing via spring)
+    grid.scrollLeft = pct * max;
+    // Move thumb instantly while dragging
+    const px = pct * maxLeft;
+    currentLeft = targetLeft = px;
+    thumb.style.left = (px + 3) + "px";
+  }
+
+  function onDragEnd(){
+    if(!isDragging) return;
+    isDragging = false;
+    thumb.style.width = thumbW + "px";
+    scrubber.style.cursor = "pointer";
+  }
+
+  scrubber.addEventListener("mousedown",  e => { onDragStart(e.clientX); e.preventDefault(); });
+  scrubber.addEventListener("touchstart", e => { onDragStart(e.touches[0].clientX); }, { passive:true });
+  document.addEventListener("mousemove",  e => { onDragMove(e.clientX); });
+  document.addEventListener("touchmove",  e => { onDragMove(e.touches[0].clientX); }, { passive:true });
+  document.addEventListener("mouseup",    onDragEnd);
+  document.addEventListener("touchend",   onDragEnd);
+
+  // ── View All ──
   let expanded = false;
   function getActiveLabel(){
-    const active = document.querySelector(".p-filter.active");
-    return active ? active.textContent.replace(/\d+/g,"").trim() : "All";
+    const a = document.querySelector(".p-filter.active");
+    return a ? a.textContent.replace(/\d+/g,"").trim() : "All";
   }
   btn && btn.addEventListener("click", () => {
     expanded = !expanded;
@@ -2534,16 +2621,15 @@ document.querySelectorAll(".svc").forEach(card => {
     btn.classList.toggle("expanded", expanded);
     btn.childNodes[0].textContent = expanded ? "Collapse " : "View All ";
     labelEl.textContent = expanded ? "" : getActiveLabel();
-    setTimeout(updateScrubber, 50);
+    setTimeout(() => setThumbInstant(pctFromScroll()), 60);
   });
 
-  // Update label on filter change
   document.querySelectorAll(".p-filter").forEach(f => {
     f.addEventListener("click", () => {
       setTimeout(() => {
         if(!expanded) labelEl.textContent = getActiveLabel();
-        updateScrubber();
-      }, 50);
+        setThumbInstant(pctFromScroll());
+      }, 60);
     });
   });
 })();

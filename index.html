@@ -952,7 +952,6 @@ body:hover #cur-outer{opacity:1}
     flex-direction:row!important;
     overflow-x:auto!important;
     overflow-y:visible!important;
-    scroll-snap-type:x mandatory;
     scroll-behavior:smooth;
     -webkit-overflow-scrolling:touch;
     touch-action:pan-x;
@@ -960,7 +959,6 @@ body:hover #cur-outer{opacity:1}
     padding-bottom:16px;
     padding-right:20px;
     scrollbar-width:none;-ms-overflow-style:none;
-    /* smooth hardware-accelerated scroll */
     will-change:scroll-position;
     transform:translateZ(0);
   }
@@ -970,9 +968,7 @@ body:hover #cur-outer{opacity:1}
     flex:0 0 78vw!important;
     min-width:0;
     max-width:300px!important;
-    scroll-snap-align:start;
     grid-column:unset!important;
-    /* show cat tag always on mobile */
   }
   .vcard.featured{
     flex:0 0 86vw!important;
@@ -1160,77 +1156,37 @@ footer::before{
 
 /* ════ PORTFOLIO SCRUBBER + VIEW ALL ════ */
 .work-scrubber-wrap{
-  margin-top:28px;
-  display:flex;flex-direction:column;align-items:center;gap:18px;
+  margin-top:20px;
+  display:flex;flex-direction:column;align-items:center;gap:16px;
 }
-
-/* Outer frosted capsule — the "tray" */
 .work-scrubber{
   position:relative;
-  width:64%;
-  height:22px;
+  width:70%;height:3px;
+  background:rgba(255,255,255,.10);
   border-radius:999px;
-  background:rgba(255,255,255,.06);
-  border:1px solid rgba(255,255,255,.10);
-  box-shadow:
-    0 2px 16px rgba(0,0,0,.4),
-    inset 0 1px 0 rgba(255,255,255,.10),
-    inset 0 -1px 0 rgba(0,0,0,.15);
-  backdrop-filter:blur(20px) saturate(1.4);
-  -webkit-backdrop-filter:blur(20px) saturate(1.4);
   cursor:pointer;
-  overflow:hidden;
-  padding:4px;
-  box-sizing:border-box;
+  overflow:visible;
 }
-
-/* Inner filled track */
 .work-scrubber-fill{
-  position:absolute;
-  left:4px;top:4px;bottom:4px;
-  width:0%;
-  background:linear-gradient(90deg,
-    rgba(79,142,255,.0) 0%,
-    rgba(79,142,255,.0) 100%);
+  position:absolute;left:0;top:0;height:100%;
+  background:linear-gradient(90deg,var(--blue),rgba(100,180,255,.9));
   border-radius:999px;
   pointer-events:none;
+  width:0%;
+  box-shadow:0 0 6px rgba(79,142,255,.5);
 }
-
-/* The glass thumb pill — this is the star */
 .work-scrubber-thumb{
-  position:absolute;
-  top:3px;bottom:3px;
-  left:3px;
-  width:44px;
-  border-radius:999px;
-  background:linear-gradient(
-    175deg,
-    rgba(255,255,255,.72) 0%,
-    rgba(255,255,255,.28) 40%,
-    rgba(255,255,255,.10) 100%
-  );
-  border:1px solid rgba(255,255,255,.60);
-  box-shadow:
-    0 1px 0 0 rgba(255,255,255,.50) inset,
-    0 -1px 0 0 rgba(0,0,0,.18) inset,
-    0 6px 20px rgba(0,0,0,.40),
-    0 1px 4px rgba(0,0,0,.25);
-  backdrop-filter:blur(16px) saturate(1.8);
-  -webkit-backdrop-filter:blur(16px) saturate(1.8);
+  position:absolute;top:50%;
+  width:13px;height:13px;
+  border-radius:50%;
+  background:#fff;
+  border:2px solid var(--blue);
+  box-shadow:0 0 10px rgba(79,142,255,.6),0 2px 6px rgba(0,0,0,.4);
+  transform:translateY(-50%);
   cursor:grab;
   pointer-events:none;
-  /* NO CSS transition — JS handles all movement for perfect smoothness */
+  left:0px;
   will-change:left,width;
-}
-
-/* Subtle specular glare on thumb */
-.work-scrubber-thumb::after{
-  content:"";
-  position:absolute;
-  top:1px;left:6px;right:6px;height:40%;
-  border-radius:999px;
-  background:linear-gradient(180deg,rgba(255,255,255,.55) 0%,transparent 100%);
-  pointer-events:none;
 }
 
 .view-all-btn{
@@ -2505,111 +2461,78 @@ document.querySelectorAll(".svc").forEach(card => {
 /* ════ PORTFOLIO SCRUBBER — smooth Apple-style ════ */
 (function(){
   const grid    = document.getElementById("vgrid");
+  const fill    = document.getElementById("workFill");
   const thumb   = document.getElementById("workThumb");
   const scrubber= document.getElementById("workScrubber");
   const btn     = document.getElementById("viewAllBtn");
   const labelEl = document.getElementById("viewAllLabel");
   if(!grid||!thumb||!scrubber) return;
 
-  // Current and target thumb left px — RAF interpolates between them
-  let currentLeft = 0;
-  let targetLeft  = 0;
-  let thumbW      = 44;   // base width px
-  let isDragging  = false;
-  let rafId       = null;
-
-  function trackWidth(){ return scrubber.clientWidth - 6; } // usable px (3px padding each side)
+  const THUMB_R = 6.5; // half of 13px
+  let currentPct = 0;
+  let targetPct  = 0;
+  let isDragging = false;
+  let rafId      = null;
 
   function pctFromScroll(){
     const max = grid.scrollWidth - grid.clientWidth;
-    if(max <= 0) return 0;
-    return grid.scrollLeft / max;
+    return max <= 0 ? 0 : Math.max(0, Math.min(1, grid.scrollLeft / max));
   }
 
-  function setThumbInstant(pct){
-    const tw = trackWidth();
-    const maxLeft = tw - thumbW;
-    const px = Math.max(0, Math.min(maxLeft, pct * maxLeft));
-    currentLeft = targetLeft = px;
-    thumb.style.left = (px + 3) + "px"; // +3 for padding
+  function applyPct(pct){
+    const tw = scrubber.clientWidth;
+    const px = THUMB_R + pct * (tw - THUMB_R * 2);
+    thumb.style.left = px + "px";
+    fill.style.width  = (pct * 100) + "%";
+  }
+
+  function setInstant(pct){
+    currentPct = targetPct = Math.max(0, Math.min(1, pct));
+    applyPct(currentPct);
   }
 
   function tick(){
-    // Spring interpolation — feels like iOS
-    const diff = targetLeft - currentLeft;
-    if(Math.abs(diff) < 0.05){
-      currentLeft = targetLeft;
-    } else {
-      currentLeft += diff * 0.18; // spring factor — lower = slower/bouncier
+    const diff = targetPct - currentPct;
+    if(Math.abs(diff) < 0.0003){
+      currentPct = targetPct;
+      applyPct(currentPct);
+      rafId = null;
+      return;
     }
-    thumb.style.left = (currentLeft + 3) + "px";
-    if(Math.abs(diff) > 0.05) rafId = requestAnimationFrame(tick);
-    else rafId = null;
+    currentPct += diff * 0.16;
+    applyPct(currentPct);
+    rafId = requestAnimationFrame(tick);
   }
 
-  function scheduleUpdate(pct){
-    const tw = trackWidth();
-    const maxLeft = tw - thumbW;
-    targetLeft = Math.max(0, Math.min(maxLeft, pct * maxLeft));
+  function scheduleTo(pct){
+    targetPct = Math.max(0, Math.min(1, pct));
     if(!rafId) rafId = requestAnimationFrame(tick);
   }
 
-  // Sync from grid scroll
   grid.addEventListener("scroll", () => {
-    if(!isDragging) scheduleUpdate(pctFromScroll());
+    if(!isDragging) scheduleTo(pctFromScroll());
   }, { passive:true });
 
-  window.addEventListener("resize", () => {
-    setThumbInstant(pctFromScroll());
-  }, { passive:true });
+  window.addEventListener("resize", () => setInstant(pctFromScroll()), { passive:true });
+  setTimeout(() => setInstant(pctFromScroll()), 200);
 
-  // Init
-  setTimeout(() => setThumbInstant(pctFromScroll()), 200);
+  function getClientX(e){ return e.touches ? e.touches[0].clientX : e.clientX; }
 
-  // ── Drag logic ──
-  let dragStartX = 0;
-  let dragStartScrollLeft = 0;
-
-  function onDragStart(clientX){
-    isDragging = true;
-    dragStartX = clientX;
-    dragStartScrollLeft = grid.scrollLeft;
-    thumb.style.width = "54px"; // stretch on grab
-    scrubber.style.cursor = "grabbing";
+  function dragTo(clientX){
+    const rect = scrubber.getBoundingClientRect();
+    const pct  = Math.max(0, Math.min(1, (clientX - rect.left - THUMB_R) / (rect.width - THUMB_R * 2)));
+    const max  = grid.scrollWidth - grid.clientWidth;
+    if(max > 0) grid.scrollLeft = pct * max;
+    setInstant(pct);
   }
 
-  function onDragMove(clientX){
-    if(!isDragging) return;
-    const rect    = scrubber.getBoundingClientRect();
-    const tw      = trackWidth();
-    const maxLeft = tw - thumbW;
-    // Map cursor to 0–1 pct of track
-    const rawPct  = (clientX - rect.left - 3 - thumbW/2) / maxLeft;
-    const pct     = Math.max(0, Math.min(1, rawPct));
-    const max     = grid.scrollWidth - grid.clientWidth;
-    // Direct-set scroll (no smooth scroll — we do the smoothing via spring)
-    grid.scrollLeft = pct * max;
-    // Move thumb instantly while dragging
-    const px = pct * maxLeft;
-    currentLeft = targetLeft = px;
-    thumb.style.left = (px + 3) + "px";
-  }
+  scrubber.addEventListener("mousedown",  e => { isDragging=true; dragTo(e.clientX); e.preventDefault(); });
+  scrubber.addEventListener("touchstart", e => { isDragging=true; dragTo(getClientX(e)); }, { passive:true });
+  document.addEventListener("mousemove",  e => { if(isDragging) dragTo(e.clientX); });
+  document.addEventListener("touchmove",  e => { if(isDragging) dragTo(getClientX(e)); }, { passive:true });
+  document.addEventListener("mouseup",    () => { isDragging=false; });
+  document.addEventListener("touchend",   () => { isDragging=false; });
 
-  function onDragEnd(){
-    if(!isDragging) return;
-    isDragging = false;
-    thumb.style.width = thumbW + "px";
-    scrubber.style.cursor = "pointer";
-  }
-
-  scrubber.addEventListener("mousedown",  e => { onDragStart(e.clientX); e.preventDefault(); });
-  scrubber.addEventListener("touchstart", e => { onDragStart(e.touches[0].clientX); }, { passive:true });
-  document.addEventListener("mousemove",  e => { onDragMove(e.clientX); });
-  document.addEventListener("touchmove",  e => { onDragMove(e.touches[0].clientX); }, { passive:true });
-  document.addEventListener("mouseup",    onDragEnd);
-  document.addEventListener("touchend",   onDragEnd);
-
-  // ── View All ──
   let expanded = false;
   function getActiveLabel(){
     const a = document.querySelector(".p-filter.active");
@@ -2621,14 +2544,14 @@ document.querySelectorAll(".svc").forEach(card => {
     btn.classList.toggle("expanded", expanded);
     btn.childNodes[0].textContent = expanded ? "Collapse " : "View All ";
     labelEl.textContent = expanded ? "" : getActiveLabel();
-    setTimeout(() => setThumbInstant(pctFromScroll()), 60);
+    setTimeout(() => setInstant(pctFromScroll()), 60);
   });
 
   document.querySelectorAll(".p-filter").forEach(f => {
     f.addEventListener("click", () => {
       setTimeout(() => {
         if(!expanded) labelEl.textContent = getActiveLabel();
-        setThumbInstant(pctFromScroll());
+        setInstant(pctFromScroll());
       }, 60);
     });
   });
